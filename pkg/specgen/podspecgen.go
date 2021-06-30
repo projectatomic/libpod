@@ -57,6 +57,10 @@ type PodBasicConfig struct {
 	// (e.g. `podman generate systemd --new`).
 	// Optional.
 	PodCreateCommand []string `json:"pod_create_command,omitempty"`
+	// Userns is used to indicate which kind of Usernamespace to enter.
+	// Any containers created within the pod will inherit the pod's userns settings.
+	// Optional
+	Userns Namespace `json:"userns,omitempty"`
 }
 
 // PodNetworkConfig contains networking configuration for a pod.

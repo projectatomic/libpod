@@ -1778,7 +1778,7 @@ func (c *Container) generateResolvConf() (string, error) {
 		return "", err
 	}
 
-	return filepath.Join(c.state.RunDir, "resolv.conf"), nil
+	return destPath, nil
 }
 
 // generateHosts creates a containers hosts file

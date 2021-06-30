@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -559,4 +560,217 @@ ENTRYPOINT ["sleep","99999"]
 		podJSON := podInspect.InspectPodToJSON()
 		Expect(podJSON.CPUSetCPUs).To(Equal(in))
 	})
+
+	It("podman pod create with --userns=keep-id", func() {
+		podName := "testPod"
+		podCreate := podmanTest.Podman([]string{"pod", "create", "--userns", "keep-id", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+
+		session := podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "id", "-u"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		uid := fmt.Sprintf("%d", os.Geteuid())
+		ok, _ := session.GrepString(uid)
+		Expect(ok).To(BeTrue())
+
+		// Check passwd
+		session = podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "id", "-un"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		u, err := user.Current()
+		Expect(err).To(BeNil())
+		ok, _ = session.GrepString(u.Name)
+		Expect(ok).To(BeTrue())
+
+		// root owns /usr
+		session = podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "stat", "-c%u", "/usr"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		Expect(session.OutputToString()).To(Equal("0"))
+
+		// fail if --pod and --userns set together
+		session = podmanTest.Podman([]string{"run", "--pod", podName, "--userns", "keep-id", ALPINE, "id", "-u"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(1))
+	})
+
+	It("podman pod create with --userns=keep-id can add users", func() {
+		if os.Geteuid() == 0 {
+			Skip("Test only runs without root")
+		}
+
+		userName := os.Getenv("USER")
+		if userName == "" {
+			Skip("Can't complete test if no username available")
+		}
+
+		podName := "testPod"
+		podCreate := podmanTest.Podman([]string{"pod", "create", "--userns", "keep-id", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+
+		ctrName := "ctr-name"
+		session := podmanTest.Podman([]string{"run", "--pod", podName, "--user", "root:root", "-d", "--stop-signal", "9", "--name", ctrName, fedoraMinimal, "sleep", "600"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+
+		exec1 := podmanTest.Podman([]string{"exec", "-t", "-i", ctrName, "cat", "/etc/passwd"})
+		exec1.WaitWithDefaultTimeout()
+		Expect(exec1.ExitCode()).To(Equal(0))
+		Expect(exec1.OutputToString()).To(ContainSubstring(userName))
+
+		exec2 := podmanTest.Podman([]string{"exec", "-t", "-i", ctrName, "useradd", "testuser"})
+		exec2.WaitWithDefaultTimeout()
+		Expect(exec2.ExitCode()).To(Equal(0))
+	})
+
+	It("podman pod create with --userns=auto", func() {
+		u, err := user.Current()
+		Expect(err).To(BeNil())
+		name := u.Name
+		if name == "root" {
+			name = "containers"
+		}
+
+		content, err := ioutil.ReadFile("/etc/subuid")
+		if err != nil {
+			Skip("cannot read /etc/subuid")
+		}
+		if !strings.Contains(string(content), name) {
+			Skip("cannot find mappings for the current user")
+		}
+
+		m := make(map[string]string)
+		for i := 0; i < 5; i++ {
+			podName := "testPod" + strconv.Itoa(i)
+			podCreate := podmanTest.Podman([]string{"pod", "create", "--userns=auto", "--name", podName})
+			podCreate.WaitWithDefaultTimeout()
+			Expect(podCreate.ExitCode()).To(Equal(0))
+
+			session := podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/uid_map"})
+			session.WaitWithDefaultTimeout()
+			Expect(session.ExitCode()).To(Equal(0))
+			l := session.OutputToString()
+			Expect(strings.Contains(l, "1024")).To(BeTrue())
+			m[l] = l
+		}
+		// check for no duplicates
+		Expect(len(m)).To(Equal(5))
+	})
+
+	It("podman pod create --userns=auto:size=%d", func() {
+		u, err := user.Current()
+		Expect(err).To(BeNil())
+
+		name := u.Name
+		if name == "root" {
+			name = "containers"
+		}
+
+		content, err := ioutil.ReadFile("/etc/subuid")
+		if err != nil {
+			Skip("cannot read /etc/subuid")
+		}
+		if !strings.Contains(string(content), name) {
+			Skip("cannot find mappings for the current user")
+		}
+
+		podName := "testPod"
+		podCreate := podmanTest.Podman([]string{"pod", "create", "--userns=auto:size=500", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+		session := podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/uid_map"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		ok, _ := session.GrepString("500")
+
+		podName = "testPod-1"
+		podCreate = podmanTest.Podman([]string{"pod", "create", "--userns=auto:size=3000", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+		session = podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/uid_map"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		ok, _ = session.GrepString("3000")
+
+		Expect(ok).To(BeTrue())
+	})
+
+	It("podman pod create --userns=auto:uidmapping=", func() {
+		u, err := user.Current()
+		Expect(err).To(BeNil())
+
+		name := u.Name
+		if name == "root" {
+			name = "containers"
+		}
+
+		content, err := ioutil.ReadFile("/etc/subuid")
+		if err != nil {
+			Skip("cannot read /etc/subuid")
+		}
+		if !strings.Contains(string(content), name) {
+			Skip("cannot find mappings for the current user")
+		}
+
+		podName := "testPod"
+		podCreate := podmanTest.Podman([]string{"pod", "create", "--userns=auto:uidmapping=0:0:1", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+		session := podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/uid_map"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		output := session.OutputToString()
+		Expect(output).To(MatchRegexp("\\s0\\s0\\s1"))
+
+		podName = "testPod-1"
+		podCreate = podmanTest.Podman([]string{"pod", "create", "--userns=auto:size=8192,uidmapping=0:0:1", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+		session = podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/uid_map"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		ok, _ := session.GrepString("8191")
+		Expect(ok).To(BeTrue())
+	})
+
+	It("podman pod create --userns=auto:gidmapping=", func() {
+		u, err := user.Current()
+		Expect(err).To(BeNil())
+
+		name := u.Name
+		if name == "root" {
+			name = "containers"
+		}
+
+		content, err := ioutil.ReadFile("/etc/subuid")
+		if err != nil {
+			Skip("cannot read /etc/subuid")
+		}
+		if !strings.Contains(string(content), name) {
+			Skip("cannot find mappings for the current user")
+		}
+
+		podName := "testPod"
+		podCreate := podmanTest.Podman([]string{"pod", "create", "--userns=auto:gidmapping=0:0:1", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+		session := podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/gid_map"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		output := session.OutputToString()
+		Expect(output).To(MatchRegexp("\\s0\\s0\\s1"))
+
+		podName = "testPod-1"
+		podCreate = podmanTest.Podman([]string{"pod", "create", "--userns=auto:size=8192,uidmapping=0:0:1", "--name", podName})
+		podCreate.WaitWithDefaultTimeout()
+		Expect(podCreate.ExitCode()).To(Equal(0))
+		session = podmanTest.Podman([]string{"run", "--pod", podName, ALPINE, "cat", "/proc/self/gid_map"})
+		session.WaitWithDefaultTimeout()
+		Expect(session.ExitCode()).To(Equal(0))
+		ok, _ := session.GrepString("8191")
+		Expect(ok).To(BeTrue())
+	})
+
 })

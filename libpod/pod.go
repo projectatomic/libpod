@@ -7,6 +7,7 @@ import (
 
 	"github.com/containers/podman/v3/libpod/define"
 	"github.com/containers/podman/v3/libpod/lock"
+	"github.com/containers/podman/v3/pkg/specgen"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -113,6 +114,7 @@ type InfraContainerConfig struct {
 	Slirp4netns        bool                  `json:"slirp4netns,omitempty"`
 	NetworkOptions     map[string][]string   `json:"network_options,omitempty"`
 	ResourceLimits     *specs.LinuxResources `json:"resource_limits,omitempty"`
+	Userns             specgen.Namespace     `json:"userns,omitempty"`
 }
 
 // ID retrieves the pod's ID

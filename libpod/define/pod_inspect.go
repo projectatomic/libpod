@@ -103,6 +103,8 @@ type InspectPodInfraConfig struct {
 	CPUQuota int64 `json:"cpu_quota,omitempty"`
 	// CPUSetCPUs contains linux specific CPU data for the container
 	CPUSetCPUs string `json:"cpuset_cpus,omitempty"`
+	// UserNS is the usernamespace that all the containers in the pod will join.
+	UserNS string `json:"userns,omitempty"`
 }
 
 // InspectPodContainerInfo contains information on a container in a pod.

@@ -146,5 +146,11 @@ func createPodOptions(p *specgen.PodSpecGenerator, rt *libpod.Runtime) ([]libpod
 	if len(p.InfraConmonPidFile) > 0 {
 		options = append(options, libpod.WithInfraConmonPidFile(p.InfraConmonPidFile))
 	}
+	// Use pod user and infra userns only when --userns is not set to host
+	if !p.Userns.IsHost() {
+		options = append(options, libpod.WithPodUser())
+		options = append(options, libpod.WithPodUserns(p.Userns))
+	}
+
 	return options, nil
 }
