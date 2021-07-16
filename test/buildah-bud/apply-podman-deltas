@@ -158,6 +158,9 @@ skip "FIXME FIXME FIXME podman save/load has been fixed (but not yet used in Bui
 ###############################################################################
 # BEGIN tests which are skipped due to actual podman bugs.
 
+# Commit to cause rebase conflict, as a reminder to re-enable this test
+unskip "FIXED - requires updated CI images (#10829)" \
+       "FIXED bud with --runtime and --runtime-flag"
 
 ###############################################################################
 # Done.
