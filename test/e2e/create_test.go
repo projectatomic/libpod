@@ -151,6 +151,10 @@ var _ = Describe("Podman create", func() {
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
 
+		session = podmanTest.Podman([]string{"wait", "test"})
+		session.WaitWithDefaultTimeout()
+		Expect(session).Should(Exit(0))
+
 		session = podmanTest.Podman([]string{"logs", "test"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
@@ -172,6 +176,11 @@ var _ = Describe("Podman create", func() {
 		session = podmanTest.Podman([]string{"start", "test"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
+
+		session = podmanTest.Podman([]string{"wait", "test"})
+		session.WaitWithDefaultTimeout()
+		Expect(session).Should(Exit(0))
+
 		session = podmanTest.Podman([]string{"logs", "test"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
@@ -183,6 +192,10 @@ var _ = Describe("Podman create", func() {
 		session = podmanTest.Podman([]string{"start", "test_ro"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
+
+		session = podmanTest.Podman([]string{"wait", "test_ro"})
+		session.WaitWithDefaultTimeout()
+		Expect(session).Should(Exit(0))
 		session = podmanTest.Podman([]string{"logs", "test_ro"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
@@ -192,6 +205,9 @@ var _ = Describe("Podman create", func() {
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
 		session = podmanTest.Podman([]string{"start", "test_shared"})
+		session.WaitWithDefaultTimeout()
+		Expect(session).Should(Exit(0))
+		session = podmanTest.Podman([]string{"wait", "test_shared"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
 		session = podmanTest.Podman([]string{"logs", "test_shared"})
@@ -208,6 +224,9 @@ var _ = Describe("Podman create", func() {
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
 		session = podmanTest.Podman([]string{"start", "test_tmpfs"})
+		session.WaitWithDefaultTimeout()
+		Expect(session).Should(Exit(0))
+		session = podmanTest.Podman([]string{"wait", "test_tmpfs"})
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(Exit(0))
 		session = podmanTest.Podman([]string{"logs", "test_tmpfs"})
