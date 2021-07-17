@@ -391,4 +391,13 @@ var _ = Describe("Podman run", func() {
 		Expect(session).Should(Exit(0))
 		Expect(session.OutputToString()).To(Equal(profile))
 	})
+
+	It("podman PrepareVolumeOnCreate in containers.conf", func() {
+		//containers-volume.conf is set to "prepare_volume_on_create = true"
+		os.Setenv("CONTAINERS_CONF", "config/containers-volume.conf")
+
+		session := podmanTest.Podman([]string{"create", "--rm", "--name", "test", fedoraMinimal})
+		session.WaitWithDefaultTimeout()
+		Expect(session).Should(Exit(0))
+	})
 })

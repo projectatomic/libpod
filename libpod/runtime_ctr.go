@@ -460,6 +460,25 @@ func (r *Runtime) setupContainer(ctx context.Context, ctr *Container) (_ *Contai
 	} else if err := r.state.AddContainer(ctr); err != nil {
 		return nil, err
 	}
+
+	// Copy the content from the underlying image into the newly created
+	// volume if configured to do so.
+	if r.config.Containers.PrepareVolumeOnCreate {
+		defer func() {
+			if retErr != nil {
+				if err := ctr.cleanupStorage(); err != nil {
+					logrus.Errorf("error cleaning up container storage %s: %v", ctr.ID(), err)
+				}
+			}
+		}()
+
+		mntpnt, err := ctr.mountStorage()
+		if err != nil {
+			return nil, err
+		}
+		logrus.Infof("Container %s storage %s mounted successfully", ctr.Name(), mntpnt)
+	}
+
 	ctr.newContainerEvent(events.Create)
 	return ctr, nil
 }
